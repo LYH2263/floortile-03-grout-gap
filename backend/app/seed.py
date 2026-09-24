@@ -26,12 +26,17 @@ def init_db():
             room_id INTEGER,
             tile_id INTEGER,
             waste_pct REAL,
+            grout_mm REAL,
             result_json TEXT NOT NULL,
             note TEXT DEFAULT '',
             created_at TEXT NOT NULL
         );
         """
     )
+    # Migrate pre-grout databases: add the pinned grout_mm column if missing.
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(calc_runs)").fetchall()}
+    if "grout_mm" not in cols:
+        conn.execute("ALTER TABLE calc_runs ADD COLUMN grout_mm REAL")
     if conn.execute("SELECT COUNT(*) c FROM rooms").fetchone()["c"] == 0:
         conn.executemany(
             "INSERT INTO rooms(name,length,width,data_quality,note) VALUES (?,?,?,?,?)",
@@ -50,5 +55,7 @@ def init_db():
             ],
         )
         conn.execute("INSERT INTO settings(key,value) VALUES ('waste_pct','8')")
+        conn.execute("INSERT INTO settings(key,value) VALUES ('grout_mm','0')")
         conn.commit()
+    conn.commit()
     conn.close()

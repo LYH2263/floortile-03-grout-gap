@@ -10,18 +10,20 @@ def insert_run(
     waste_pct: float,
     result: dict,
     note: str = "",
+    grout_mm: float = 0.0,
 ) -> int:
     conn = connect()
     try:
         cur = conn.execute(
             """
-            INSERT INTO calc_runs(room_id, tile_id, waste_pct, result_json, note, created_at)
-            VALUES (?,?,?,?,?,?)
+            INSERT INTO calc_runs(room_id, tile_id, waste_pct, grout_mm, result_json, note, created_at)
+            VALUES (?,?,?,?,?,?,?)
             """,
             (
                 room_id,
                 tile_id,
                 waste_pct,
+                float(grout_mm),
                 json.dumps(result, ensure_ascii=False),
                 note,
                 datetime.now(timezone.utc).isoformat(),
@@ -31,6 +33,15 @@ def insert_run(
         return int(cur.lastrowid)
     finally:
         conn.close()
+
+
+def _row_to_dict(row) -> dict:
+    d = dict(row)
+    d["result"] = json.loads(d.pop("result_json"))
+    # Old rows predate the grout_mm column; fall back to the pinned result payload.
+    if d.get("grout_mm") is None:
+        d["grout_mm"] = d["result"].get("grout_mm", 0.0)
+    return d
 
 
 def list_runs(limit: int = 50):
@@ -47,12 +58,7 @@ def list_runs(limit: int = 50):
             """,
             (limit,),
         ).fetchall()
-        out = []
-        for row in rows:
-            d = dict(row)
-            d["result"] = json.loads(d.pop("result_json"))
-            out.append(d)
-        return out
+        return [_row_to_dict(row) for row in rows]
     finally:
         conn.close()
 
@@ -72,8 +78,6 @@ def get_run(run_id: int):
         ).fetchone()
         if not row:
             return None
-        d = dict(row)
-        d["result"] = json.loads(d.pop("result_json"))
-        return d
+        return _row_to_dict(row)
     finally:
         conn.close()
