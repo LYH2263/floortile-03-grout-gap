@@ -8,12 +8,20 @@ const rooms = ref([])
 const tiles = ref([])
 const roomId = ref(1)
 const tileId = ref(1)
+const gapMm = ref(0)
 const result = ref(null)
 const err = ref('')
+const savedMsg = ref('')
 
 onMounted(async () => {
-  rooms.value = (await getJSON('/api/rooms')).items.filter(r => r.data_quality === 'clean')
-  tiles.value = (await getJSON('/api/tiles')).items.filter(t => t.data_quality === 'clean')
+  const [roomList, tileList, settings] = await Promise.all([
+    getJSON('/api/rooms'),
+    getJSON('/api/tiles'),
+    getJSON('/api/settings'),
+  ])
+  rooms.value = roomList.items.filter(r => r.data_quality === 'clean')
+  tiles.value = tileList.items.filter(t => t.data_quality === 'clean')
+  gapMm.value = Number(settings.gap_mm) || 0
   if (rooms.value.length) roomId.value = rooms.value[0].id
   if (tiles.value.length) tileId.value = tiles.value[0].id
 })
@@ -21,7 +29,9 @@ onMounted(async () => {
 async function preview() {
   err.value = ''
   try {
-    result.value = await getJSON(`/api/estimate?room_id=${roomId.value}&tile_id=${tileId.value}`)
+    const q = new URLSearchParams({ room_id: roomId.value, tile_id: tileId.value })
+    if (Number.isFinite(gapMm.value)) q.set('gap_mm', String(gapMm.value))
+    result.value = await getJSON(`/api/estimate?${q}`)
   } catch (e) {
     err.value = e.message
     result.value = null
@@ -29,21 +39,31 @@ async function preview() {
 }
 
 async function saveRun() {
-  result.value = await postJSON('/api/estimate', {
-    room_id: roomId.value,
-    tile_id: tileId.value,
-    save: true,
-    note: '前端保存',
-  })
+  err.value = ''
+  savedMsg.value = ''
+  try {
+    result.value = await postJSON('/api/estimate', {
+      room_id: roomId.value,
+      tile_id: tileId.value,
+      save: true,
+      note: '前端保存',
+      ...(Number.isFinite(gapMm.value) ? { gap_mm: gapMm.value } : {}),
+    })
+    savedMsg.value = `已保存 #${result.value.run_id}`
+  } catch (e) {
+    err.value = e.message
+  }
 }
 </script>
 <template>
   <div class="page">
     <h1>下单测算</h1>
-    <label>房间 <select v-model.number="roomId"><option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}</option></select></label>
-    <label>砖型 <select v-model.number="tileId"><option v-for="t in tiles" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
+    <label>房间 <select v-model.number="roomId" @change="preview"><option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}</option></select></label>
+    <label>砖型 <select v-model.number="tileId" @change="preview"><option v-for="t in tiles" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
+    <label>缝宽(mm) <input type="number" min="0" step="0.5" v-model.number="gapMm" @change="preview"></label>
     <button @click="preview">试算</button>
     <button @click="saveRun">保存记录</button>
+    <p v-if="savedMsg">{{ savedMsg }}</p>
     <p v-if="err" class="alert">{{ err }}</p>
     <OrderSummary :result="result" />
     <TileGridPreview v-if="result?.layout" :cols="result.layout.cols" :rows="result.layout.rows" :grid-count="result.layout.grid_count" />

@@ -32,6 +32,11 @@ def init_db():
         );
         """
     )
+    conn.executemany(
+        "INSERT OR IGNORE INTO settings(key,value) VALUES (?,?)",
+        [("waste_pct", "8"), ("gap_mm", "0")],
+    )
+    conn.commit()
     if conn.execute("SELECT COUNT(*) c FROM rooms").fetchone()["c"] == 0:
         conn.executemany(
             "INSERT INTO rooms(name,length,width,data_quality,note) VALUES (?,?,?,?,?)",
@@ -49,6 +54,5 @@ def init_db():
                 ("脏数据-零面积", 0.0, 0.6, "dirty"),
             ],
         )
-        conn.execute("INSERT INTO settings(key,value) VALUES ('waste_pct','8')")
         conn.commit()
     conn.close()

@@ -1,3 +1,5 @@
+import pytest
+
 from app.engines.tile_math import layout_preview, tile_count
 
 
@@ -22,3 +24,23 @@ def test_zero_waste():
     r = tile_count(3.0, 3.0, 1.0, 1.0, 0.0)
     assert r["raw_count"] == 9
     assert r["order_count"] == 9
+
+
+def test_grout_5mm_guest_room():
+    r = tile_count(6.0, 4.5, 0.6, 0.6, 8.0, gap_m=0.005)
+    assert r["piece_m2"] == 0.354
+    assert r["raw_count"] == 77
+    assert r["order_count"] == 84
+    assert r["layout"] == {"cols": 11, "rows": 8, "grid_count": 88}
+
+
+def test_grout_zero_matches_default():
+    assert tile_count(6.0, 4.5, 0.6, 0.6, 8.0) == tile_count(
+        6.0, 4.5, 0.6, 0.6, 8.0, gap_m=0.0
+    )
+
+
+@pytest.mark.parametrize("gap", [-0.001, 0.6, 0.9])
+def test_invalid_gap_raises(gap):
+    with pytest.raises(ValueError):
+        tile_count(6.0, 4.5, 0.6, 0.6, 8.0, gap_m=gap)

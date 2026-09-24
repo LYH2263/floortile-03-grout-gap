@@ -5,6 +5,7 @@ class EstimateRequest(BaseModel):
     room_id: int
     tile_id: int
     waste_pct: float | None = None
+    gap_mm: float | None = None
     save: bool = False
     note: str = ""
 
